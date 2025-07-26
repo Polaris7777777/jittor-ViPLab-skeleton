@@ -1,5 +1,5 @@
-predict_output_dir="predict"
-render_output_dir="tmp_predict"
+predict_output_dir="predict/mix_online5_0.5"
+render_output_dir="render/mix_online5_0.5"
 render="true"
 export_fbx="false"
 

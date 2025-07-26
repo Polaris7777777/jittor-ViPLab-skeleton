@@ -17,6 +17,10 @@ ref
 *.pth
 *.ckpt
 *.txt
+*.npy
+*.png
+*.npz
+*.zip
 
 # keep env
 !requirements.txt

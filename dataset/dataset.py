@@ -68,6 +68,14 @@ class RigDataset(Dataset):
             total_len=len(self.paths),
             shuffle=self.shuffle,
         )
+
+        print('preparing dataset...')
+        self.assets = {}
+        for path in self.paths:
+            asset = Asset.load(os.path.join(self.data_root, path))
+            if self.transform is not None:
+                self.transform(asset)
+            self.assets[path] = asset
     
     def __getitem__(self, index) -> Dict:
         """
@@ -85,9 +93,7 @@ class RigDataset(Dataset):
         """
         
         path = self.paths[index]
-        asset = Asset.load(os.path.join(self.data_root, path))
-        if self.transform is not None:
-            self.transform(asset)
+        asset = self.assets[path]
         origin_vertices = jt.array(asset.vertices.copy()).float32()
         
         sampled_asset = asset.sample(sampler=self._sampler)

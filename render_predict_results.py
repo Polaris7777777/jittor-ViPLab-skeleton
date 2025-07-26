@@ -37,12 +37,36 @@ def main(args):
         vertices = np.load(os.path.join(root, 'transformed_vertices.npy'))
         skin = np.load(os.path.join(root, 'predict_skin.npy'))
         joints = np.load(os.path.join(root, 'predict_skeleton.npy'))
+        
+        # Load sampled vertices if available
+        sampled_vertices_skin_path = os.path.join(root, 'sampled_vertices_skin.npy')
+        sampled_vertices_skeleton_path = os.path.join(root, 'sampled_vertices_skeleton.npy')
+        sampled_vertices_skin = None
+        sampled_vertices_skeleton = None
+        if os.path.exists(sampled_vertices_skin_path):
+            sampled_vertices_skin = np.load(sampled_vertices_skin_path)
+        if os.path.exists(sampled_vertices_skeleton_path):
+            sampled_vertices_skeleton = np.load(sampled_vertices_skeleton_path)  
+        
         if render:
             exporter._render_skeleton(
                 path=os.path.join(save_path, 'skeleton.png'),
                 joints=joints,
                 parents=parents,
             )
+            
+        if sampled_vertices_skin is not None:
+            exporter._render_pc(
+                path=os.path.join(save_path, 'sampled_vertices_skin.png'),
+                vertices=sampled_vertices_skin
+            )
+
+        if sampled_vertices_skeleton is not None:
+            exporter._render_pc(
+                path=os.path.join(save_path, 'sampled_vertices_skeleton.png'),
+                vertices=sampled_vertices_skeleton
+            )
+            
             for id in id_to_name:
                 name = id_to_name[id]
                 exporter._render_skin(

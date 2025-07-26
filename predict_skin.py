@@ -5,7 +5,7 @@ import argparse
 
 from dataset.asset import Asset
 from dataset.dataset import get_dataloader, transform
-from dataset.sampler import SamplerMix
+from dataset.sampler import SamplerMix,SamplerFPSMix, SamplerFPS
 from models.skin import create_model
 
 import numpy as np
@@ -24,8 +24,16 @@ def predict(args):
         model_type=args.model_type
     )
     
-    sampler = SamplerMix(num_samples=1024, vertex_samples=512)
-    
+    # sampler = SamplerMix(num_samples=1024, vertex_samples=512)
+    # sampler = SamplerMix(num_samples=2048, vertex_samples=1024)
+    if args.sampler == 'mix':
+        sampler = SamplerMix(num_samples=args.num_samples, vertex_samples=args.vertex_samples)
+    elif args.sampler == 'fps':
+        sampler =SamplerFPS(num_samples=args.num_samples)
+    elif args.sampler == 'fpsmix':
+        sampler = SamplerFPSMix(num_samples=args.num_samples, vertex_samples=args.vertex_samples)
+    else:
+        raise ValueError(f"Unknown sampler type: {args.sampler}")
     # Load pre-trained model if specified
     if args.pretrained_model:
         model.load(args.pretrained_model)
@@ -76,6 +84,8 @@ def predict(args):
             os.makedirs(path, exist_ok=True)
             np.save(os.path.join(path, "predict_skin"), skin_resampled)
             np.save(os.path.join(path, "transformed_vertices"), o_vertices)
+            # if args.debug:
+            np.save(os.path.join(path, "sampled_vertices_skin"), vertices[i].numpy())
     print("finished")
 
 def main():
@@ -103,7 +113,17 @@ def main():
     # Predict parameters
     parser.add_argument('--predict_output_dir', type=str,
                         help='Path to store prediction results')
-    
+        
+
+    parser.add_argument('--num_samples', type=int, default=1024,
+                        help='Number of samples to predict')
+    parser.add_argument('--vertex_samples', type=int, default=512,
+                        help='Number of vertex samples to use')
+    parser.add_argument('--sampler', type=str, default='mix',
+                        choices=['mix', 'fps','fpsmix'],
+                        help='Sampler type to use for prediction')
+    parser.add_argument('--debug', type=bool, default=False,
+                        help='debug mode, save sampled vertices')
     args = parser.parse_args()
     
     predict(args)

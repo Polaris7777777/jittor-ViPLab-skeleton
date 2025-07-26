@@ -147,7 +147,7 @@ class Point_Transformer_Last(nn.Module):
     def __init__(self, channels=256):
         super(Point_Transformer_Last, self).__init__()
         self.conv1 = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
-        self.conv_pos = nn.Conv1d(3, channels, kernel_size=1, bias=False)
+        # self.conv_pos = nn.Conv1d(3, channels, kernel_size=1, bias=False)
 
         self.bn1 = nn.BatchNorm1d(channels)
 
@@ -166,7 +166,7 @@ class Point_Transformer_Last(nn.Module):
         batch_size, _, N = x.size()
         # add position embedding
         xyz = xyz.permute(0, 2, 1)
-        xyz = self.pos_xyz(xyz)
+        # xyz = self.conv_pos(xyz) + xyz
         # end
         x = self.relu(self.bn1(self.conv1(x))) # B, D, N
 

@@ -6,7 +6,7 @@ import time
 import random
 
 from jittor import nn
-from jittor import optim
+from jittor import optim, lr_scheduler
 
 from dataset.dataset import get_dataloader, transform
 from dataset.format import id_to_name
@@ -14,6 +14,8 @@ from dataset.sampler import SamplerMix
 from models.skin import create_model
 
 from dataset.exporter import Exporter
+
+# from tensorboardX import SummaryWriter
 
 # Set Jittor flags
 jt.flags.use_cuda = 1
@@ -31,6 +33,7 @@ def train(args):
     
     # Set up logging
     log_file = os.path.join(args.output_dir, 'training_log.txt')
+    # writer = SummaryWriter(args.output_dir)
     
     def log_message(message):
         """Helper function to log messages to file and print to console"""
@@ -54,11 +57,14 @@ def train(args):
     # Create optimizer
     if args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=args.momentum, weight_decay=args.weight_decay)
-    elif args.optimizer == 'adam':
-        optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    elif args.optimizer == 'adamw':
+        optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     else:
         raise ValueError(f"Unknown optimizer: {args.optimizer}")
-    
+
+    # create lr scheduler
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_step, gamma=args.lr_decay)
+
     # Create loss function
     criterion_mse = nn.MSELoss()
     criterion_l1 = nn.L1Loss()
@@ -70,7 +76,8 @@ def train(args):
         train=True,
         batch_size=args.batch_size,
         shuffle=True,
-        sampler=SamplerMix(num_samples=1024, vertex_samples=512),
+        sampler=SamplerMix(num_samples=2048, vertex_samples=1024),
+        # sampler=SamplerMix(num_samples=1024, vertex_samples=512),
         transform=transform,
     )
     
@@ -81,7 +88,8 @@ def train(args):
             train=False,
             batch_size=args.batch_size,
             shuffle=False,
-            sampler=SamplerMix(num_samples=1024, vertex_samples=512),
+            sampler=SamplerMix(num_samples=2048, vertex_samples=1024),
+            # sampler=SamplerMix(num_samples=1024, vertex_samples=512),
             transform=transform,
         )
     else:
@@ -121,6 +129,9 @@ def train(args):
             if (batch_idx + 1) % args.print_freq == 0 or (batch_idx + 1) == len(train_loader):
                 log_message(f"Epoch [{epoch+1}/{args.epochs}] Batch [{batch_idx+1}/{len(train_loader)}] "
                            f"Loss mse: {loss_mse.item():.4f} Loss l1: {loss_l1.item():.4f}")
+                
+        # Step the scheduler
+        scheduler.step()
         
         # Calculate epoch statistics
         train_loss_mse /= len(train_loader)
@@ -132,6 +143,9 @@ def train(args):
                    f"Train Loss l1: {train_loss_l1:.4f} "
                    f"Time: {epoch_time:.2f}s "
                    f"LR: {optimizer.lr:.6f}")
+        # writer.add_scalar('train/loss_mse', train_loss_mse, epoch)
+        # writer.add_scalar('train/loss_l1', train_loss_l1, epoch)
+        # writer.add_scalar('train/lr', optimizer.lr, epoch)
 
         # Validation phase
         if val_loader is not None and (epoch + 1) % args.val_freq == 0:
@@ -155,8 +169,8 @@ def train(args):
                     for i in id_to_name:
                         name = id_to_name[i]
                         # export every joint's corresponding skinning
-                        exporter._render_skin(path=f"tmp/skin/epoch_{epoch}/{name}_ref.png",vertices=vertices.numpy()[0], skin=skin.numpy()[0, :, i], joint=joints[0, i])
-                        exporter._render_skin(path=f"tmp/skin/epoch_{epoch}/{name}_pred.png",vertices=vertices.numpy()[0], skin=outputs.numpy()[0, :, i], joint=joints[0, i])
+                        exporter._render_skin(path=f"{args.output_dir}/tmp/skin/epoch_{epoch}/{name}_ref.png",vertices=vertices.numpy()[0], skin=skin.numpy()[0, :, i], joint=joints[0, i])
+                        exporter._render_skin(path=f"{args.output_dir}/tmp/skin/epoch_{epoch}/{name}_pred.png",vertices=vertices.numpy()[0], skin=outputs.numpy()[0, :, i], joint=joints[0, i])
 
                 val_loss_mse += loss_mse.item()
                 val_loss_l1 += loss_l1.item()
@@ -166,6 +180,8 @@ def train(args):
             val_loss_l1 /= len(val_loader)
             
             log_message(f"Validation Loss: mse: {val_loss_mse:.4f} l1: {val_loss_l1:.4f}")
+            # writer.add_scalar('val/loss_mse', val_loss_mse, epoch)
+            # writer.add_scalar('val/loss_l1', val_loss_l1, epoch)
             
             # Save best model
             if val_loss_l1 < best_loss:
@@ -214,8 +230,8 @@ def main():
                         help='Batch size for training')
     parser.add_argument('--epochs', type=int, default=1000,
                         help='Number of training epochs')
-    parser.add_argument('--optimizer', type=str, default='adam',
-                        choices=['sgd', 'adam'],
+    parser.add_argument('--optimizer', type=str, default='adamw',
+                        choices=['sgd', 'adamw'],
                         help='Optimizer to use')
     parser.add_argument('--learning_rate', type=float, default=0.0001,
                         help='Initial learning rate')
@@ -223,6 +239,10 @@ def main():
                         help='Weight decay (L2 penalty)')
     parser.add_argument('--momentum', type=float, default=0.9,
                         help='Momentum for SGD optimizer')
+    parser.add_argument('--lr_step', type=int, default=20,
+                        help='Step size for learning rate decay')
+    parser.add_argument('--lr_decay', type=float, default=0.8,
+                        help='Decay factor for learning rate')
     
     # Output parameters
     parser.add_argument('--output_dir', type=str, default='output/skin',
